@@ -1,0 +1,62 @@
+---
+version: '3.9'
+services:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on: 
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      ALLOW_PLAINTEXT_LISTENER: "true"
+      KAFKA_BROKER_ID: "1"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_CREATE_TOPICS: "example:3:1,web_requests:3:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "unset", "JMX_PORT", ";", "kafka-topics.sh", "--zookeeper", "zookeeper:2181", "--list"]
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: "2181"
+    privileged: true
+    ports:
+      - "2181:2181"
+
+  localstack:
+    image: localstack/localstack:0.13.1
+    ports: 
+      - "4566:4566"
+    environment:
+      - SERVICES=s3,dynamodb
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - HOST_TMP_FOLDER=${TMPDIR}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4566/health" ]
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+    - "10000:10000"
+    - "10001:10001"
+  setup:
+    build:
+      context: .
+      dockerfile: Dockerfile.setup
+    depends_on: 
+      - kafka
+      - localstack
+      - azurite
+    entrypoint: "/bin/bash"
+    command:
+      - /localstack-setup_emails.sh
+    volumes:
+      - ./bin/localstack-setup_emails.sh:/localstack-setup_emails.sh
+      - "./tests/data/emails/:/data/emails"
