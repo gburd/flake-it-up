@@ -1,2 +1,0 @@
-# flake-it-up
-tests
